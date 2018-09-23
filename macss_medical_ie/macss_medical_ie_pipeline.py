@@ -1,21 +1,32 @@
 import spacy
 
+from macss_medical_ie.macss_medial_ie_settings import LANGUAGE, NER_MODEL_PATH, \
+    NEGATION_TRIGGER_PATH, RE_MODEL_PATH
 from macss_medical_ie.pipeline.named_entity_recognition import NER
 from macss_medical_ie.pipeline.negation_detection import NegationDetection
 from macss_medical_ie.pipeline.relation_extraction import RelationExtraction
 
 
 class MedicalIEPipeline:
-    def __init__(self, language, ner_model_path, neg_detection_trigger_path, re_model_path):
-        self.nlp = spacy.load(language, disable=['tagger', 'ner', 'textcat'])
+    _MEDICAL_IE_PIPELINE = None
 
-        named_entity_recognition = NER(self.nlp, model_file=ner_model_path)
-        negation_detection = NegationDetection(self.nlp, rule_file=neg_detection_trigger_path)
-        relation_extraction = RelationExtraction(self.nlp, model_file=re_model_path)
+    @staticmethod
+    def get_pipeline():
+        if MedicalIEPipeline._MEDICAL_IE_PIPELINE is None:
+            pipeline = spacy.load(LANGUAGE, disable=['tagger', 'ner', 'textcat'])
 
-        self.nlp.add_pipe(named_entity_recognition)
-        self.nlp.add_pipe(relation_extraction)
-        self.nlp.add_pipe(negation_detection)
+            named_entity_recognition = NER(pipeline, model_file=NER_MODEL_PATH)
+            negation_detection = NegationDetection(pipeline, rule_file=NEGATION_TRIGGER_PATH)
+            relation_extraction = RelationExtraction(pipeline, model_file=RE_MODEL_PATH)
 
-    def process_text(self, text):
-        return self.nlp(text)
+            pipeline.add_pipe(named_entity_recognition)
+            pipeline.add_pipe(relation_extraction)
+            pipeline.add_pipe(negation_detection)
+
+            MedicalIEPipeline._MEDICAL_IE_PIPELINE = pipeline
+        
+        return MedicalIEPipeline._MEDICAL_IE_PIPELINE
+
+    @staticmethod
+    def get_annotated_document(text):
+        return MedicalIEPipeline.get_pipeline()(text)

@@ -27,7 +27,9 @@ setup(
         'spacy==2.0.12',
         'scikit-learn==0.19.2',
         'pytest==3.8.1',
-        'fire==0.1.3'
+        'fire==0.1.3',
+        'flair==' + _get_github_sha(
+            'git+git://github.com/ChristophAlt/flair.git#egg=flair')
     ],
     dependency_links=[
         'git+git://github.com/ChristophAlt/flair.git#egg=flair-' + _get_github_sha(
