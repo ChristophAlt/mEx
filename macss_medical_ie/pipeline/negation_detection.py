@@ -1,5 +1,5 @@
 import spacy
-from spacy import Span, Doc
+from spacy.tokens import Span, Doc
 from spacy.matcher import PhraseMatcher
 
 
