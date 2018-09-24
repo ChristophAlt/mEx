@@ -28,6 +28,7 @@ setup(
         'scikit-learn==0.19.2',
         'pytest==3.8.1',
         'fire==0.1.3',
+        'requests==2.19.1',
         'flair==' + _get_github_sha(
             'git+git://github.com/ChristophAlt/flair.git#egg=flair')
     ],
