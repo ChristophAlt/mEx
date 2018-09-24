@@ -32,6 +32,8 @@ class SolrUMLSCandidateRetriever(CandidateRetriever):
         s_str=re.sub(r"^ ", "", s_str)
         s_str=re.sub(r" $", "", s_str)
 
+        s_str = re.escape(s_str)
+
         return s_str.split(r'\\s+')
         
     def _get_field_queries(self, entity):
