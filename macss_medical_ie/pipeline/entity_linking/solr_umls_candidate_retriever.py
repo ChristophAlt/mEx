@@ -1,8 +1,12 @@
+import logging
 import re
 from abc import ABC, abstractmethod
 from itertools import chain
 
 import requests
+
+
+logger = logging.getLogger(__name__)
 
 
 class CandidateRetriever(ABC):
@@ -71,12 +75,22 @@ class SolrUMLSCandidateRetriever(CandidateRetriever):
             wt='json'
         )
         
-        # TODO: check for return code
-        response = requests.get(self.query_url, params=params)
-        result_docs = response.json()['response']['docs']
+        candidates = []
+        try:
+            response = requests.get(self.query_url, params=params, timeout=5)
+        except requests.exceptions.Timeout:
+            logger.error(f'Request to {self.query_url} timed out.')
+            return candidates
 
-        candidates = set()
-        for doc in result_docs:
-            candidates.update(doc['IX_umlsCode'])
+        solr_response = response.json()
+        solr_response_header = solr_response['responseHeader']
         
-        return list(candidates)
+        if solr_response_header['status'] != 0:
+            logger.error(f'Internal SOLR error: {solr_response}')
+            return candidates
+
+        result_docs = solr_response['response']['docs']
+        for doc in result_docs:
+            candidates.extend(doc['IX_umlsCode'])
+        
+        return list(set(candidates))

@@ -1,5 +1,6 @@
 import fire
 import json
+import logging
 
 from os import listdir, chmod
 from os.path import isfile, join, dirname
@@ -128,33 +129,45 @@ def load_semeval_corpus_jsonl(path_to_data, dev_size, seed, train_file='train.js
 
     return TaggedCorpus(sentences_train, sentences_dev, sentences_test)
 
+dataset_loader = {
+    'macss': load_corpus_weird,
+    'semeval': load_semeval_corpus_jsonl
+}
 
-def train(data_dir, model_dir, num_filters=150, word_embeddings='de-fasttext',
-          offset_embedding_dim=50, learning_rate=.1, batch_size=32, max_epochs=50,
-          dropout=.5, seed=0, dev_size=.1, test_size=.2):
 
-    corpus: TaggedCorpus = load_corpus_weird(data_dir, dev_size, seed)
-    #corpus: TaggedCorpus = load_semeval_corpus_jsonl(data_dir, dev_size, seed)
-    print('Corpus:', corpus)
+
+def train(data_dir: str, model_dir: str, dataset_format: str='macss', num_filters: int=150,
+          word_embeddings: str='de-fasttext', offset_embedding_dim: int=50, learning_rate: float=.1,
+          batch_size: int=32, max_epochs: int=50, dropout: float=.5, use_char_embeddings: bool=False,
+          seed: int=0, dev_size: float=.1, test_size: float=.2):
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(message)s',
+        datefmt='%d-%b-%y %H:%M:%S')
+
+    logging.info(f'Training config: {locals().items()}')
+
+    if dataset_format not in ['macss', 'semeval']:
+        raise ValueError(f"Dataset format '{dataset_format}' not supported.")
+
+    corpus: TaggedCorpus = dataset_loader[dataset_format](data_dir, dev_size, seed)
+    label_dictionary = corpus.make_label_dictionary()
+
+    logging.info(f'Corpus: {corpus}')
     corpus.print_statistics()
 
-    label_dictionary = corpus.make_label_dictionary()
-    print('Size of label dictionary:', len(label_dictionary))
-    print('Labels:', label_dictionary.get_items())
+    logging.info(f'Size of label dictionary: {len(label_dictionary)}')
+    logging.info(f'Labels: {label_dictionary.get_items()}')
 
     embedding_types: List[TokenEmbeddings] = [
-
         WordEmbeddings(word_embeddings),
         RelativeOffsetEmbeddings('offset_e1', max_len=200, embedding_dim=offset_embedding_dim),
         RelativeOffsetEmbeddings('offset_e2', max_len=200, embedding_dim=offset_embedding_dim),
-
-        # comment in this line to use character embeddings
-        CharacterEmbeddings(),
-
-        # comment in these lines to use contextual string embeddings
-        # CharLMEmbeddings('news-forward'),
-        # CharLMEmbeddings('news-backward'),
     ]
+
+    if use_char_embeddings:
+        embedding_types += CharacterEmbeddings()
 
     document_embeddings: DocumentCNNEmbeddings = DocumentCNNEmbeddings(embedding_types,
                                                                        num_filters=num_filters,
@@ -172,7 +185,7 @@ def train(data_dir, model_dir, num_filters=150, word_embeddings='de-fasttext',
                   max_epochs=max_epochs)
 
 
-def evaluate(test_file, model_file, semeval_scoring=False):
+def evaluate(test_file, model_file, dataset_format='macss', semeval_scoring=False):
     if semeval_scoring:
         eval_script = cached_path(
             'https://raw.githubusercontent.com/vzhong/semeval/master/dataset/SemEval2010_task8_scorer-v1.2/semeval2010_task8_scorer-v1.2.pl',
@@ -182,10 +195,11 @@ def evaluate(test_file, model_file, semeval_scoring=False):
     classifier: TextClassifier = TextClassifier.load_from_file(model_file)
     #sentences_test: List[Sentence] = load_sentences_jsonl(test_file, attach_id=True)
     idx2item = load_idx2item(join(dirname(test_file), 'vocabulary/embeddings.csv'))
-    sentences_test: List[Sentence] = load_sentences_weird(test_file, idx2item,
-                                                          is_test=False, attach_id=True)
-    sentences_pred: List[Sentence] = load_sentences_weird(test_file, idx2item,
-                                                          is_test=True, attach_id=True)                                                      
+
+    load_dataset = dataset_loader[dataset_format]
+
+    sentences_test: List[Sentence] = load_dataset(test_file, idx2item, is_test=False, attach_id=True)
+    sentences_pred: List[Sentence] = load_dataset(test_file, idx2item, is_test=True, attach_id=True)                                                      
 
     sentences_pred = classifier.predict(sentences_pred)
 
