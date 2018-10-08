@@ -129,11 +129,11 @@ def load_semeval_corpus_jsonl(path_to_data, dev_size, seed, train_file='train.js
 
     return TaggedCorpus(sentences_train, sentences_dev, sentences_test)
 
+
 dataset_loader = {
     'macss': load_corpus_weird,
     'semeval': load_semeval_corpus_jsonl
 }
-
 
 
 def train(data_dir: str, model_dir: str, dataset_format: str='macss', num_filters: int=150,
