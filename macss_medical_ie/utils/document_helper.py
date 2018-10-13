@@ -1,7 +1,7 @@
 import json
 
 
-def doc_to_brat(doc):
+def doc_to_brat(doc, selected_ents=None, selected_rels=None):
     def get_or_create(item2id, item, prefix):
         if item not in item2id:
             item2id[item] = '{}{}'.format(prefix, len(item2id) + 1)
@@ -21,33 +21,36 @@ def doc_to_brat(doc):
     relation_idx = 1
     attribute_idx = 1
     for ent in doc.ents:
+        if selected_ents and ent.label_.upper() not in selected_ents:
+            continue
+        
         entity_id = get_or_create(entity2id, ent, prefix='T')
-        entity = (entity_id, ent.label_.upper(), [[ent.start_char, ent.end_char]], ent.text)
-        entities.append(entity)
+        entities += (entity_id, ent.label_.upper(), [[ent.start_char, ent.end_char]], ent.text)
 
         # create attributes for negated entities
         if ent._.is_negated:
-            attributes.append(('A%d' % attribute_idx, 'Negation', entity_id))
+            attributes += ('A%d' % attribute_idx, 'Negation', entity_id)
             attribute_idx += 1
 
         if ent in linked_entities:
             cuis = [cui for cui, _ in sorted(linked_entities[ent].items(), key=lambda e: -e[1])]
 
-            attributes.append(('A%d' % attribute_idx, 'UMLSCandidate', entity_id))
+            attributes += ('A%d' % attribute_idx, 'UMLSCandidate', entity_id)
             attribute_idx += 1
 
             # TODO: this naming scheme and format should be refactored
             umls_candidates = [{'CUI': cui} for cui in cuis]
-            comments.append((entity_id, json.dumps({'String': ent.text, 'UMLS-Candidates': umls_candidates})))
+            comments += (entity_id, json.dumps({'String': ent.text, 'UMLS-Candidates': umls_candidates}))
 
 
-    for entity_tail, entity_head, relation_name in doc._.rels:
+    for entity_tail, entity_head, relation_label in doc._.rels:
+        if selected_rels and relation_label.upper() not in selected_rels:
+            continue
+        
         entity_tail_id = get_or_create(entity2id, entity_tail, prefix='T')
         entity_head_id = get_or_create(entity2id, entity_head, prefix='T')
 
-        relation = ('R%d' % relation_idx, relation_name, [['', entity_tail_id], ['', entity_head_id]])
-
-        relations.append(relation)
+        relations += ('R%d' % relation_idx, relation_label.upper(), [['', entity_tail_id], ['', entity_head_id]])
         relation_idx += 1
     
     return {
