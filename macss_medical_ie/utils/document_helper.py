@@ -25,22 +25,22 @@ def doc_to_brat(doc, selected_ents=None, selected_rels=None):
             continue
         
         entity_id = get_or_create(entity2id, ent, prefix='T')
-        entities += (entity_id, ent.label_.upper(), [[ent.start_char, ent.end_char]], ent.text)
+        entities.append((entity_id, ent.label_.upper(), [[ent.start_char, ent.end_char]], ent.text))
 
         # create attributes for negated entities
         if ent._.is_negated:
-            attributes += ('A%d' % attribute_idx, 'Negation', entity_id)
+            attributes.append(('A%d' % attribute_idx, 'Negation', entity_id))
             attribute_idx += 1
 
         if ent in linked_entities:
             cuis = [cui for cui, _ in sorted(linked_entities[ent].items(), key=lambda e: -e[1])]
 
-            attributes += ('A%d' % attribute_idx, 'UMLSCandidate', entity_id)
+            attributes.append(('A%d' % attribute_idx, 'UMLSCandidate', entity_id))
             attribute_idx += 1
 
             # TODO: this naming scheme and format should be refactored
             umls_candidates = [{'CUI': cui} for cui in cuis]
-            comments += (entity_id, json.dumps({'String': ent.text, 'UMLS-Candidates': umls_candidates}))
+            comments.append((entity_id, json.dumps({'String': ent.text, 'UMLS-Candidates': umls_candidates})))
 
 
     for entity_tail, entity_head, relation_label in doc._.rels:
@@ -50,7 +50,7 @@ def doc_to_brat(doc, selected_ents=None, selected_rels=None):
         entity_tail_id = get_or_create(entity2id, entity_tail, prefix='T')
         entity_head_id = get_or_create(entity2id, entity_head, prefix='T')
 
-        relations += ('R%d' % relation_idx, relation_label.upper(), [['', entity_tail_id], ['', entity_head_id]])
+        relations.append(('R%d' % relation_idx, relation_label.upper(), [['', entity_tail_id], ['', entity_head_id]]))
         relation_idx += 1
     
     return {
