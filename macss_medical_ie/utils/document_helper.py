@@ -1,7 +1,8 @@
 import json
 
 
-def doc_to_brat(doc, selected_ents=None, selected_rels=None):
+def doc_to_brat(doc, selected_ents=None, selected_rels=None, enable_negation=True,
+                enable_candidate_search=True, enable_wsd=True):
     def get_or_create(item2id, item, prefix):
         if item not in item2id:
             item2id[item] = '{}{}'.format(prefix, len(item2id) + 1)
@@ -28,11 +29,11 @@ def doc_to_brat(doc, selected_ents=None, selected_rels=None):
         entities.append((entity_id, ent.label_.upper(), [[ent.start_char, ent.end_char]], ent.text))
 
         # create attributes for negated entities
-        if ent._.is_negated:
+        if enable_negation and ent._.is_negated:
             attributes.append(('A%d' % attribute_idx, 'Negation', entity_id))
             attribute_idx += 1
 
-        if ent in linked_entities:
+        if enable_candidate_search and ent in linked_entities:
             cuis = [cui for cui, _ in sorted(linked_entities[ent].items(), key=lambda e: -e[1])]
 
             attributes.append(('A%d' % attribute_idx, 'UMLSCandidate', entity_id))
@@ -40,6 +41,10 @@ def doc_to_brat(doc, selected_ents=None, selected_rels=None):
 
             # TODO: this naming scheme and format should be refactored
             umls_candidates = [{'CUI': cui} for cui in cuis]
+
+            if enable_wsd and umls_candidates:
+                umls_candidates = umls_candidates[0]
+
             comments.append((entity_id, json.dumps({'String': ent.text, 'UMLS-Candidates': umls_candidates})))
 
 
