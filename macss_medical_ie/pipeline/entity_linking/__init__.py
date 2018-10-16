@@ -24,6 +24,7 @@ class EntityLinking:
                     entity_candidates.append((entity, candidates))
                     break
         
-        doc._.ents_linked = self.disambiguator.disambiguate(entity_candidates)
+        doc._.ents_linked = (self.disambiguator.disambiguate(entity_candidates) 
+                             if entity_candidates else [])
         
         return doc

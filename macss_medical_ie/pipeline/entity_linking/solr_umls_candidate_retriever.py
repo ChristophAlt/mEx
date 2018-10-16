@@ -81,6 +81,9 @@ class SolrUMLSCandidateRetriever(CandidateRetriever):
         except requests.exceptions.Timeout:
             logger.error(f'Request to {self.query_url} timed out.')
             return candidates
+        except requests.exceptions.ConnectionError:
+            logger.error(f'Request to {self.query_url} failed.')
+            return candidates
 
         solr_response = response.json()
         solr_response_header = solr_response['responseHeader']
