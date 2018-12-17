@@ -33,6 +33,10 @@ def doc_to_brat(doc, selected_ents=None, selected_rels=None, enable_negation=Tru
             attributes.append(('A%d' % attribute_idx, 'Negation', entity_id))
             attribute_idx += 1
 
+        if enable_negation and ent._.is_possible:
+            attributes.append(('A%d' % attribute_idx, 'Speculation', entity_id))
+            attribute_idx += 1
+
         if enable_candidate_search and ent in linked_entities:
             cuis = [cui for cui, _ in sorted(linked_entities[ent].items(), key=lambda e: -e[1])]
 

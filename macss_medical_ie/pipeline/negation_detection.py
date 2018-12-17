@@ -1,7 +1,7 @@
 import spacy
 from spacy.tokens import Span, Doc
 from spacy.matcher import PhraseMatcher
-
+import re
 
 class NegationDetection:
     name = 'negation_detection'
@@ -12,25 +12,49 @@ class NegationDetection:
 
         Span.set_extension('negation', default='AFFIRMED')
         Span.set_extension('is_negated', getter=lambda s: s._.negation == 'NEGATED')
+        Span.set_extension('is_possible', getter=lambda s: s._.negation == 'POSSIBLE')
         Span.set_extension('negation_source', default=None)
         
         Doc.set_extension('negs', default=[])
         
         self.nlp = nlp
-        self.matcher = PhraseMatcher(self.nlp.vocab, max_length=matcher_max_length)
-        
+        # self.matcher = PhraseMatcher(self.nlp.vocab, max_length=matcher_max_length)
+        #
+        # with open(rule_file) as f:
+        #     for rule in f.readlines():
+        #         parts = rule.strip().split('\t')
+        #         pattern, match_id = parts[0], parts[2][1:-1]
+        #         self.matcher.add(match_id, None, self.nlp.tokenizer(pattern.lower()))
+        #         self.nlp.vocab.strings.add(match_id)
+
+
+        # POS and PRE trigger have to be handled seperately, as trigger can occur in both sets and otherwise they are overwritten in dict
+        self.matcher1 = PhraseMatcher(self.nlp.vocab, max_length=matcher_max_length)
         with open(rule_file) as f:
             for rule in f.readlines():
                 parts = rule.strip().split('\t')
                 pattern, match_id = parts[0], parts[2][1:-1]
-                self.matcher.add(match_id, None, self.nlp.tokenizer(pattern))
-                self.nlp.vocab.strings.add(match_id)
+                if re.match("^POS.*", match_id) or re.match("^CONJ$", match_id) or re.match("^PSEU$", match_id):
+                    self.matcher1.add(match_id, None, self.nlp.tokenizer(pattern.lower()))
+                    self.nlp.vocab.strings.add(match_id)
+
+        self.matcher2 = PhraseMatcher(self.nlp.vocab, max_length=matcher_max_length)
+        with open(rule_file) as f:
+            for rule in f.readlines():
+                parts = rule.strip().split('\t')
+                pattern, match_id = parts[0], parts[2][1:-1]
+                if re.match("^PRE.*", match_id) or re.match("^CONJ$", match_id) or re.match("^PSEU$", match_id):
+                    self.matcher2.add(match_id, None, self.nlp.tokenizer(pattern.lower()))
+                    self.nlp.vocab.strings.add(match_id)
                 
         self.forward_scope = forward_scope
         self.backward_scope = backward_scope
 
     def is_negated(self, tokens):
         return any([t._.negation == 'NEGATED' for t in tokens])
+
+    def is_possible(self, tokens):
+        return any([t._.negation == 'POSSIBLE' for t in tokens])
     
     @staticmethod
     def filter_matches(matches):
@@ -59,47 +83,74 @@ class NegationDetection:
         # [POSP] - Post possible negation tag
         # [PSEU] - Pseudo negation tag
         # [CONJ] - Conjunction tag
+
         for term in negation_terms:
             rule_tag, start, end = term
             
             if rule_tag == self.nlp.vocab.strings['PSEU']:
                 continue
             
-            elif rule_tag == self.nlp.vocab.strings['PREN']:
+            elif rule_tag == self.nlp.vocab.strings['PREN'] or rule_tag == self.nlp.vocab.strings['PREP']:
                 scope_tokens = doc[end: end + self.forward_scope]
                 found_entity_idx = -1
                 for token in scope_tokens:
                     if token.is_punct or token._.negation_type == 'CONJ':
                         break
-                    elif token.ent_type_:
+                    elif token.ent_type_ == "Medical_condition":
                         found_entity_idx = token.i
                         break
                 for ent in doc.ents:
-                    if (found_entity_idx >= 0) and (ent.start <= found_entity_idx < ent.end):
-                        ent._.negation = 'NEGATED'
+                    if (found_entity_idx >= 0) and (ent.start <= found_entity_idx < ent.end) and (ent.label_ == "Medical_condition"):
+                        if rule_tag == self.nlp.vocab.strings['PREN']:
+                            ent._.negation = 'NEGATED'
+                        elif rule_tag == self.nlp.vocab.strings['PREP']:
+                            ent._.negation = 'POSSIBLE'
                         ent._.negation_source = Span(doc, start, end)
-            
-            elif rule_tag == self.nlp.vocab.strings['POSN']:
-                scope_tokens = reversed(doc[start - self.backward_scope: start])
+
+            elif rule_tag == self.nlp.vocab.strings['POSN'] or rule_tag == self.nlp.vocab.strings['POSP']:
+
+                scope_tokens = reversed(doc[ max(start - self.backward_scope, 0) : start])
+
                 found_entity_idx = -1
                 for token in scope_tokens:
                     if token.is_punct or token._.negation_type == 'CONJ':
                         break
-                    elif token.ent_type_:
+                    elif token.ent_type_ == "Medical_condition":
                         found_entity_idx = token.i
                         break
                 for ent in doc.ents:
-                    if (found_entity_idx >= 0) and (ent.start <= found_entity_idx < ent.end):
-                        ent._.negation = 'NEGATED'
+                    if (found_entity_idx >= 0) and (ent.start <= found_entity_idx < ent.end) and (ent.label_ == "Medical_condition"):
+                        if rule_tag == self.nlp.vocab.strings['POSN']:
+                            ent._.negation = 'NEGATED'
+                        elif rule_tag == self.nlp.vocab.strings['POSP']:
+                            ent._.negation = 'POSSIBLE'
                         ent._.negation_source = Span(doc, start, end)
     
     def __call__(self, doc):
-        matches = self.matcher(doc)
+        doc_low = Doc(self.nlp.vocab, words=[t.lower_ for t in doc], spaces=[t.whitespace_ for t in doc])
+        #print ("doc_low:", doc_low)
+        # matches = self.matcher(doc_low)
+        # print ("matches1:", matches)
+        # # filter matches for overlaps (keep longest span)
+        # negation_terms = self.filter_matches(matches)
+        # print ("negation terms1:", negation_terms)
+
+        #POS trigger
+        matches = self.matcher1(doc_low)
         # filter matches for overlaps (keep longest span)
         negation_terms = self.filter_matches(matches)
 
+        #PRE triger
+        matches2 = self.matcher2(doc_low)
+        # filter matches for overlaps (keep longest span)
+        negation_terms2 = self.filter_matches(matches2)
+
+        negation_terms+=negation_terms2
+
         doc._.negs = [Span(doc, start, end, label=rule_tag) for rule_tag, start, end in negation_terms]
-        
+
+        #print (">>>", doc._.negs)
+
         for neg_span in doc._.negs:
             for token in neg_span:
                 token._.negation_type_ = neg_span.label
