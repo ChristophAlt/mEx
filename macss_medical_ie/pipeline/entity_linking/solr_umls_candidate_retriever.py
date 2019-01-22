@@ -85,16 +85,17 @@ class SolrUMLSCandidateRetriever(CandidateRetriever):
             logger.error(f'Request to {self.query_url} failed.')
             return candidates
 
-        solr_response = response.json()
-        if solr_response:
-            solr_response_header = solr_response['responseHeader']
+        if response:
+            solr_response = response.json()
+            if solr_response:
+                solr_response_header = solr_response['responseHeader']
 
-            if solr_response_header['status'] != 0:
-                logger.error(f'Internal SOLR error: {solr_response}')
-                return candidates
+                if solr_response_header['status'] != 0:
+                    logger.error(f'Internal SOLR error: {solr_response}')
+                    return candidates
 
-            result_docs = solr_response['response']['docs']
-            for doc in result_docs:
-                candidates.extend(doc['IX_umlsCode'])
+                result_docs = solr_response['response']['docs']
+                for doc in result_docs:
+                    candidates.extend(doc['IX_umlsCode'])
         
         return list(set(candidates))
